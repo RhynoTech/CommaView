@@ -4,6 +4,11 @@
 
 CommaView provides a live camera view + telemetry HUD from a comma device to Android devices over LAN.
 
+
+> 🚧 **Source availability:** Public source code is currently limited while the project is still in active alpha iteration.
+>
+> For now, this repo primarily publishes installer + release artifacts. Full source publication will happen once APIs/install flow stabilize.
+
 ---
 
 ## What it does
