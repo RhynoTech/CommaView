@@ -97,4 +97,6 @@ Then upload both files to GitHub Release `v0.1.1-alpha` (or next tag), and updat
 
 ## License
 
-TBD
+This repository is **All Rights Reserved**.
+
+See [LICENSE](./LICENSE) and [DISCLAIMER.md](./DISCLAIMER.md).
