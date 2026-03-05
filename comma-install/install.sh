@@ -213,6 +213,20 @@ AUTHKEY_FILE="${COMMAVIEW_TAILSCALE_AUTHKEY_FILE:-$TAILSCALE_DIR/authkey}"
 INTERVAL_SEC="${COMMAVIEW_GUARDIAN_INTERVAL_SEC:-2}"
 ONESHOT="${COMMAVIEW_GUARDIAN_ONESHOT:-0}"
 
+DISABLE_SUDO="${COMMAVIEW_DISABLE_SUDO:-0}"
+USE_SUDO=0
+if [ "$DISABLE_SUDO" != "1" ] && command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+  USE_SUDO=1
+fi
+
+run_cmd() {
+  if [ "$USE_SUDO" = "1" ]; then
+    sudo -n "$@"
+  else
+    "$@"
+  fi
+}
+
 mkdir -p "$RUN_DIR" "$LOG_DIR" "$(dirname "$SOCKET_PATH")"
 PIDFILE="$RUN_DIR/tailscale_guardian.pid"
 LOGFILE="$LOG_DIR/tailscale-guardian.log"
@@ -265,16 +279,26 @@ start_tailscaled() {
     return 1
   fi
 
-  nohup "$TAILSCALED_BIN"     --state="$STATE_FILE"     --socket="$SOCKET_PATH"     >> "$LOGFILE" 2>&1 &
+  if [ "$USE_SUDO" = "1" ]; then
+    nohup sudo -n "$TAILSCALED_BIN" \
+      --state="$STATE_FILE" \
+      --socket="$SOCKET_PATH" \
+      >> "$LOGFILE" 2>&1 &
+  else
+    nohup "$TAILSCALED_BIN" \
+      --state="$STATE_FILE" \
+      --socket="$SOCKET_PATH" \
+      >> "$LOGFILE" 2>&1 &
+  fi
+
   echo $! > "$RUN_DIR/tailscaled.pid"
-  sleep 0.3
+  sleep 0.5
   log "started tailscaled"
 }
 
-
 tailscale_down() {
   if [ -x "$TAILSCALE_BIN" ]; then
-    "$TAILSCALE_BIN" --socket "$SOCKET_PATH" down >> "$LOGFILE" 2>&1 || true
+    run_cmd "$TAILSCALE_BIN" --socket "$SOCKET_PATH" down >/dev/null 2>&1 || true
   fi
 }
 
@@ -290,7 +314,11 @@ stop_tailscaled() {
     rm -f "$RUN_DIR/tailscaled.pid"
   fi
 
-  pkill -f "$TAILSCALED_BIN" 2>/dev/null || true
+  if [ "$USE_SUDO" = "1" ]; then
+    sudo -n pkill -f "$TAILSCALED_BIN" 2>/dev/null || true
+  else
+    pkill -f "$TAILSCALED_BIN" 2>/dev/null || true
+  fi
   log "stopped tailscaled"
 }
 
@@ -301,7 +329,7 @@ ensure_tailscale_up() {
   fi
 
   local backend
-  backend="$($TAILSCALE_BIN --socket "$SOCKET_PATH" status --json 2>/dev/null \
+  backend="$(run_cmd "$TAILSCALE_BIN" --socket "$SOCKET_PATH" status --json 2>/dev/null \
     | python3 -c 'import json,sys; print(json.load(sys.stdin).get("BackendState","unknown"))' 2>/dev/null || echo "unknown")"
 
   if [ "$backend" = "Running" ]; then
@@ -314,7 +342,7 @@ ensure_tailscale_up() {
   fi
 
   if [ -n "$authkey" ]; then
-    if "$TAILSCALE_BIN" --socket "$SOCKET_PATH" up --authkey "$authkey" --accept-routes --reset >> "$LOGFILE" 2>&1; then
+    if run_cmd "$TAILSCALE_BIN" --socket "$SOCKET_PATH" up --authkey "$authkey" --accept-routes --reset >> "$LOGFILE" 2>&1; then
       rm -f "$AUTHKEY_FILE"
       log "tailscale up succeeded (authkey consumed and removed)"
       return 0
@@ -323,30 +351,32 @@ ensure_tailscale_up() {
     return 1
   fi
 
-  "$TAILSCALE_BIN" --socket "$SOCKET_PATH" up --accept-routes >> "$LOGFILE" 2>&1 || true
-}
-
-step_once() {
-  if is_onroad || ! is_enabled; then
-    stop_tailscaled
+  if run_cmd "$TAILSCALE_BIN" --socket "$SOCKET_PATH" up --accept-routes >> "$LOGFILE" 2>&1; then
+    log "tailscale up succeeded"
     return 0
   fi
 
-  start_tailscaled || return 0
-  ensure_tailscale_up || true
+  log "tailscale up failed"
+  return 1
 }
 
-trap 'rm -f "$PIDFILE"' EXIT
-
 log "guardian start"
+
 while true; do
-  step_once
+  if is_onroad; then
+    stop_tailscaled
+  elif is_enabled; then
+    start_tailscaled || true
+    ensure_tailscale_up || true
+  else
+    stop_tailscaled
+  fi
+
   if [ "$ONESHOT" = "1" ]; then
     break
   fi
   sleep "$INTERVAL_SEC"
 done
-log "guardian exit"
 
 GUARDIANEOF
       ;;
@@ -361,6 +391,20 @@ TAILSCALE_BIN="${COMMAVIEW_TAILSCALE_BIN:-$TAILSCALE_DIR/bin/tailscale}"
 TAILSCALED_BIN="${COMMAVIEW_TAILSCALED_BIN:-$TAILSCALE_DIR/bin/tailscaled}"
 SOCKET_PATH="${COMMAVIEW_TAILSCALE_SOCKET:-$TAILSCALE_DIR/state/tailscaled.sock}"
 AUTHKEY_FILE="${COMMAVIEW_TAILSCALE_AUTHKEY_FILE:-$TAILSCALE_DIR/authkey}"
+
+DISABLE_SUDO="${COMMAVIEW_DISABLE_SUDO:-0}"
+USE_SUDO=0
+if [ "$DISABLE_SUDO" != "1" ] && command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+  USE_SUDO=1
+fi
+
+run_cmd() {
+  if [ "$USE_SUDO" = "1" ]; then
+    sudo -n "$@"
+  else
+    "$@"
+  fi
+}
 
 read_param() {
   local key="$1"
@@ -389,7 +433,7 @@ authkey_pending() {
 
 tailscale_backend_state() {
   if [ -x "$TAILSCALE_BIN" ]; then
-    "$TAILSCALE_BIN" --socket "$SOCKET_PATH" status --json 2>/dev/null \
+    run_cmd "$TAILSCALE_BIN" --socket "$SOCKET_PATH" status --json 2>/dev/null \
       | python3 -c 'import json,sys; print(json.load(sys.stdin).get("BackendState","unknown"))' 2>/dev/null \
       || echo "unknown"
   else
