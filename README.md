@@ -57,7 +57,7 @@ APK distribution remains private (not published in GitHub releases).
 ### Upgrade existing install (offroad only)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RhynoTech/CommaView/master/comma-install/upgrade.sh | ssh comma@<comma-ip> bash
+curl -fsSL https://raw.githubusercontent.com/RhynoTech/CommaView/master/comma-install/runtime/upgrade.sh | ssh comma@<comma-ip> bash
 ```
 
 The upgrader hard-blocks when `IsOnroad=1`. Park first, then run upgrade.
@@ -166,8 +166,8 @@ Allowlisted paths:
 - `DISCLAIMER.md`
 - `LICENSE`
 - `comma-install/install.sh`
-- `comma-install/uninstall.sh`
-- `comma-install/upgrade.sh`
+- `comma-install/runtime/uninstall.sh`
+- `comma-install/runtime/upgrade.sh`
 - `comma-install/commaview-api.py`
 - `comma-install/tailscale/tailscalectl.sh`
 - `comma-install/tailscale/install_tailscale_runtime.sh`
