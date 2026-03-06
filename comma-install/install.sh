@@ -658,23 +658,7 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path == "/commaview/camerad/on":
-            subprocess.run(["bash", "-c", "echo -n 1 > /data/params/d/IsDriverViewEnabled"])
-            self._respond(200, {"ok": True, "camerad": "enabled"})
-        elif self.path == "/commaview/camerad/off":
-            subprocess.run(["bash", "-c", "echo -n 0 > /data/params/d/IsDriverViewEnabled"])
-            self._respond(200, {"ok": True, "camerad": "disabled"})
-        elif self.path == "/commaview/start":
-            subprocess.Popen(["bash", f"{INSTALL_DIR}/start.sh"])
-            self._respond(200, {"ok": True, "action": "starting"})
-        elif self.path == "/commaview/stop":
-            subprocess.run(["bash", f"{INSTALL_DIR}/stop.sh"])
-            self._respond(200, {"ok": True, "action": "stopped"})
-        elif self.path == "/commaview/restart":
-            subprocess.run(["bash", f"{INSTALL_DIR}/stop.sh"])
-            subprocess.Popen(["bash", f"{INSTALL_DIR}/start.sh"])
-            self._respond(200, {"ok": True, "action": "restarting"})
-        elif self.path == "/tailscale/enable":
+        if self.path == "/tailscale/enable":
             payload = tailscale_set_enabled(True)
             self._respond(200 if payload.get("ok") else 500, payload)
         elif self.path == "/tailscale/disable":
